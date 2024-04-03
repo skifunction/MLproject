@@ -12,15 +12,14 @@ Original file is located at
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-
-#My roll number is D23CSA003
-image_size = 224
-num_classes = 10
-
 from torchvision.datasets import STL10
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+import torchvision.models as models
+
+# My roll number is D23CSA003
+image_size = 224
+num_classes = 10
 
 transform = transforms.Compose([
     transforms.Resize((image_size, image_size)),
@@ -28,207 +27,113 @@ transform = transforms.Compose([
     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
 ])
 
-
 train_dataset = STL10(root='./data', split='train', transform=transform, download=True)
 test_dataset = STL10(root='./data', split='test', transform=transform, download=True)
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-import torchvision.models as models
-
-resnet101 = models.resnet101(pretrained=True)
-
-#freezing resnet parameters
-for param in resnet101.parameters():
-    param.requires_grad = False
-
-num_ftrs = resnet101.fc.in_features
-resnet101.fc = nn.Linear(num_ftrs, num_classes)
-
-for param in resnet101.fc.parameters():
-    param.requires_grad = True
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-resnet101.to(device)
 
-optimizer = optim.Adam(resnet101.fc.parameters(), lr=0.001)
+# Define three different instances of the model with different configurations
 
-writer = SummaryWriter()
-
-from sklearn.metrics import accuracy_score
-from torch.utils.tensorboard import SummaryWriter
-
-num_epochs = 10
-for epoch in range(num_epochs):
-    resnet101.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = resnet101(images)
-        loss = nn.CrossEntropyLoss()(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-    train_loss = running_loss / len(train_loader)
-    train_accuracy = correct / total
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}, Accuracy: {100 * train_accuracy:.2f}%')
-    writer.add_scalar('Training Loss', train_loss, epoch)
-    writer.add_scalar('Training Accuracy', train_accuracy, epoch)
-
-writer.close()
-
-resnet101.eval()
-top5_accuracy = 0.0
-with torch.no_grad():
-    total = 0
-    correct_top1 = 0
-    correct_top5 = 0
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = resnet101(images)
-        _, predicted_top5 = torch.topk(outputs, 5, dim=1)
-        total += labels.size(0)
-        bool_value = predicted_top5[:, 0] == labels
-        correct_top1 += (bool_value).sum().item()
-        for i in range(labels.size(0)):
-            if labels[i] in predicted_top5[i]:
-                correct_top5 += 1
-    top1_accuracy = correct_top1 / total
-    top5_accuracy = correct_top5 / total
-
-print(f'Top-1 Test Accuracy: {100 * top1_accuracy:.2f}%')
-print(f'Top-5 Test Accuracy: {100 * top5_accuracy:.2f}%')
-
-optimizer = optim.Adagrad(resnet101.fc.parameters(), lr=0.01)
-
-resnet101 = models.resnet101(pretrained=True)
-
-#freezing resnet parameters
-for param in resnet101.parameters():
+# Model configuration 1: Adam optimizer
+resnet_adam = models.resnet101(pretrained=True)
+for param in resnet_adam.parameters():
     param.requires_grad = False
-
-num_ftrs = resnet101.fc.in_features
-resnet101.fc = nn.Linear(num_ftrs, num_classes)
-
-for param in resnet101.fc.parameters():
+num_ftrs = resnet_adam.fc.in_features
+resnet_adam.fc = nn.Linear(num_ftrs, num_classes)
+for param in resnet_adam.fc.parameters():
     param.requires_grad = True
+resnet_adam.to(device)
+optimizer_adam = optim.Adam(resnet_adam.fc.parameters(), lr=0.001)
 
-resnet101.to(device)
-
-num_epochs = 10
-for epoch in range(num_epochs):
-    resnet101.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = resnet101(images)
-        loss = nn.CrossEntropyLoss()(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-    train_loss = running_loss / len(train_loader)
-    train_accuracy = correct / total
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}, Accuracy: {100 * train_accuracy:.2f}%')
-    writer.add_scalar('Training Loss', train_loss, epoch)
-    writer.add_scalar('Training Accuracy', train_accuracy, epoch)
-
-writer.close()
-
-resnet101.eval()
-top5_accuracy = 0.0
-with torch.no_grad():
-    total = 0
-    correct_top1 = 0
-    correct_top5 = 0
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = resnet101(images)
-        _, predicted_top5 = torch.topk(outputs, 5, dim=1)
-        total += labels.size(0)
-        bool_value = predicted_top5[:, 0] == labels
-        correct_top1 += (bool_value).sum().item()
-        for i in range(labels.size(0)):
-            if labels[i] in predicted_top5[i]:
-                correct_top5 += 1
-    top1_accuracy = correct_top1 / total
-    top5_accuracy = correct_top5 / total
-
-print(f'Top-1 Test Accuracy: {100 * top1_accuracy:.2f}%')
-print(f'Top-5 Test Accuracy: {100 * top5_accuracy:.2f}%')
-
-optimizer = optim.RMSprop(resnet101.fc.parameters(), lr=0.001)
-
-resnet101 = models.resnet101(pretrained=True)
-
-#freezing resnet parameters
-for param in resnet101.parameters():
+# Model configuration 2: Adagrad optimizer
+resnet_adagrad = models.resnet101(pretrained=True)
+for param in resnet_adagrad.parameters():
     param.requires_grad = False
-
-num_ftrs = resnet101.fc.in_features
-resnet101.fc = nn.Linear(num_ftrs, num_classes)
-
-for param in resnet101.fc.parameters():
+num_ftrs = resnet_adagrad.fc.in_features
+resnet_adagrad.fc = nn.Linear(num_ftrs, num_classes)
+for param in resnet_adagrad.fc.parameters():
     param.requires_grad = True
+resnet_adagrad.to(device)
+optimizer_adagrad = optim.Adagrad(resnet_adagrad.fc.parameters(), lr=0.01)
 
-resnet101.to(device)
+# Model configuration 3: RMSprop optimizer
+resnet_rmsprop = models.resnet101(pretrained=True)
+for param in resnet_rmsprop.parameters():
+    param.requires_grad = False
+num_ftrs = resnet_rmsprop.fc.in_features
+resnet_rmsprop.fc = nn.Linear(num_ftrs, num_classes)
+for param in resnet_rmsprop.fc.parameters():
+    param.requires_grad = True
+resnet_rmsprop.to(device)
+optimizer_rmsprop = optim.RMSprop(resnet_rmsprop.fc.parameters(), lr=0.001)
 
+# Training loop for each model configuration
 num_epochs = 10
-for epoch in range(num_epochs):
-    resnet101.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
-        outputs = resnet101(images)
-        loss = nn.CrossEntropyLoss()(outputs, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.item()
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-    train_loss = running_loss / len(train_loader)
-    train_accuracy = correct / total
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}, Accuracy: {100 * train_accuracy:.2f}%')
-    writer.add_scalar('Training Loss', train_loss, epoch)
-    writer.add_scalar('Training Accuracy', train_accuracy, epoch)
 
-writer.close()
+def train_model(model, optimizer):
+    model.train()
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        for images, labels in train_loader:
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = nn.CrossEntropyLoss()(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        train_loss = running_loss / len(train_loader)
+        train_accuracy = correct / total
+        print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {train_loss:.4f}, Accuracy: {100 * train_accuracy:.2f}%')
 
-resnet101.eval()
-top5_accuracy = 0.0
-with torch.no_grad():
-    total = 0
-    correct_top1 = 0
-    correct_top5 = 0
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)
-        outputs = resnet101(images)
-        _, predicted_top5 = torch.topk(outputs, 5, dim=1)
-        total += labels.size(0)
-        bool_value = predicted_top5[:, 0] == labels
-        correct_top1 += (bool_value).sum().item()
-        for i in range(labels.size(0)):
-            if labels[i] in predicted_top5[i]:
-                correct_top5 += 1
-    top1_accuracy = correct_top1 / total
-    top5_accuracy = correct_top5 / total
+# Train and evaluate each model configuration
+print("Training model with Adam optimizer:")
+train_model(resnet_adam, optimizer_adam)
 
-print(f'Top-1 Test Accuracy: {100 * top1_accuracy:.2f}%')
-print(f'Top-5 Test Accuracy: {100 * top5_accuracy:.2f}%')
+print("Training model with Adagrad optimizer:")
+train_model(resnet_adagrad, optimizer_adagrad)
+
+print("Training model with RMSprop optimizer:")
+train_model(resnet_rmsprop, optimizer_rmsprop)
+
+# Evaluation of each model configuration
+def evaluate_model(model):
+    model.eval()
+    top5_accuracy = 0.0
+    with torch.no_grad():
+        total = 0
+        correct_top1 = 0
+        correct_top5 = 0
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted_top5 = torch.topk(outputs, 5, dim=1)
+            total += labels.size(0)
+            bool_value = predicted_top5[:, 0] == labels
+            correct_top1 += (bool_value).sum().item()
+            for i in range(labels.size(0)):
+                if labels[i] in predicted_top5[i]:
+                    correct_top5 += 1
+        top1_accuracy = correct_top1 / total
+        top5_accuracy = correct_top5 / total
+    print(f'Top-1 Test Accuracy: {100 * top1_accuracy:.2f}%')
+    print(f'Top-5 Test Accuracy: {100 * top5_accuracy:.2f}%')
+
+# Evaluate each model configuration
+print("Evaluation of model with Adam optimizer:")
+evaluate_model(resnet_adam)
+
+print("Evaluation of model with Adagrad optimizer:")
+evaluate_model(resnet_adagrad)
+
+print("Evaluation of model with RMSprop optimizer:")
+evaluate_model(resnet_rmsprop)
 
